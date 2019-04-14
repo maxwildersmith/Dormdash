@@ -1,5 +1,6 @@
 package com.example.drago.dormdash;
 
+import android.graphics.Color;
 import android.util.Log;
 
 import com.android.volley.Request;
@@ -9,9 +10,13 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapsInitializer;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CustomCap;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.firebase.firestore.GeoPoint;
 import com.google.maps.android.PolyUtil;
 
 import org.json.JSONException;
@@ -29,24 +34,25 @@ public class PickupRequest {
     private double pay;
     private String task;
 
-    public PickupRequest(LatLng pickup, LatLng dropoff, RequestQueue queue){
-        id++;
+    public PickupRequest(LatLng pickup, LatLng dropoff, RequestQueue queue, String task, double pay){
+        this(pickup,dropoff,queue,Calendar.getInstance().getTimeInMillis(),task, pay);
+    }
 
+    public PickupRequest(LatLng pickup, LatLng dropoff, RequestQueue queue, long requestTime, String task, double pay){
+        this.task=task;
+        this.pay=pay;
         sendTime = Calendar.getInstance().getTimeInMillis();
         this.pickup=pickup;
         this.dropoff=dropoff;
         String url = MainActivity.BASE_URL+pickup.latitude+","+pickup.longitude+"&destination="+dropoff.latitude+","+dropoff.longitude+"&mode=walking"+MainActivity.API;
 
-        Log.d("asdf", "PickupRequest: asdfffffffffasaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
                         try {
-                            Log.d("asdf", "onResponse: "+response);
                             JSONObject json = new JSONObject(response).getJSONArray("routes").getJSONObject(0);
                             setPolyLine(json.getJSONObject("overview_polyline").getString("points"));
-                            Log.d("asdf", "onResponse: asdfasdfasdf");
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
@@ -79,10 +85,14 @@ public class PickupRequest {
     }
 
     public void makePolyLine(GoogleMap map, List<Polyline> onMap){
-        onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(getDelay()/6000<=1?0x00bcd400:getDelay()/6000<=5?0x512da800:0xb71c1c00)));
+        onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(getDelay()/60000<=1? Color.CYAN:getDelay()/6000<=5?Color.MAGENTA:Color.RED).endCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_money))).startCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_mail)))));
+//        onMap.get(0).setStartCap(new Cap);
 
     }
 
+    public String getTask(){
+        return task;
+    }
     public boolean equals(PickupRequest obj) {
         return obj.getLatLng().equals(getLatLng());
     }

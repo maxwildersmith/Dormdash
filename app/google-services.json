@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "519850696145",
+    "firebase_url": "https://skater-1555149124683.firebaseio.com",
+    "project_id": "skater-1555149124683",
+    "storage_bucket": "skater-1555149124683.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:519850696145:android:c2f98db3e5061611",
+        "android_client_info": {
+          "package_name": "com.example.drago.dormdash"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "519850696145-q7esnshvi5ripvqhdspgqhare5qk9taf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAlPVUEtRbjr2-hu5pny4TVof338viO8c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "519850696145-q7esnshvi5ripvqhdspgqhare5qk9taf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

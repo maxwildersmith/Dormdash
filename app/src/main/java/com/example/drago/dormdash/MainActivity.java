@@ -2,9 +2,12 @@ package com.example.drago.dormdash;
 
 import android.Manifest;
 import android.app.Dialog;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
@@ -41,6 +44,12 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.GeoPoint;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -48,28 +57,34 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, OnMapReadyCallback {
 
 
-    public static final String BASE_URL="https://maps.googleapis.com/maps/api/directions/json?origin=", API="&key=";//TODO: ADD API KEY
+    public static final String BASE_URL="https://maps.googleapis.com/maps/api/directions/json?origin=", API="&key=AIzaSyDQ3MYRpEFdHYU84eRGt8g6Q4eFYmz88T4";//TODO: ADD API KEY
     public static final String DISTANCE_URL="https://maps.googleapis.com/maps/api/distancematrix/json?origins=";
 
     private GoogleMap mMap;
-    private List<PickupRequest> destinations;
+    private List<PickupRequest> quests;
     private List<Polyline> onMap;
     private RequestQueue queue;
     private Circle radiusCircle;
     private MapView mapview;
     private double range = 300;
     private LatLng[] coors = {new LatLng(34.042317, -118.255994),new LatLng(34.041906, -118.252327), new LatLng(34.041666, -118.258459)};
+    private SharedPreferences preferences;
+    private FirebaseFirestore db;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        db = FirebaseFirestore.getInstance();
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -95,9 +110,11 @@ public class MainActivity extends AppCompatActivity
         queue = Volley.newRequestQueue(this);
 
         onMap = new ArrayList<>();
-        destinations = new ArrayList<>();
-        destinations.add(new PickupRequest(coors[0],coors[2],queue));
-        destinations.add(new PickupRequest(coors[1],coors[0],queue));
+        quests = new ArrayList<>();
+        quests.add(new PickupRequest(coors[0],coors[2],queue,"Pick up a sandwich for me",2.5));
+//        destinations.add(new PickupRequest(coors[1],coors[0],queue));
+
+        pullQuests();
     }
 
     @Override
@@ -133,7 +150,7 @@ public class MainActivity extends AppCompatActivity
             final TextView seekText = (TextView)layout.findViewById(R.id.seektext);
             SeekBar seek = (SeekBar)layout.findViewById(R.id.seekBar);
             seek.setProgress((int)(range*32.8084));
-            seek.setMax(15000);
+            seek.setMax(150000);
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -159,23 +176,43 @@ public class MainActivity extends AppCompatActivity
         return super.onOptionsItemSelected(item);
     }
 
+    public void pullQuests(){
+        db.collection("quests")
+                .get()
+                .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+            @Override
+            public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                if (task.isSuccessful()) {
+                    for (QueryDocumentSnapshot document : task.getResult()) {
+                        Map<String,Object> data = document.getData();
+                        quests.add(new PickupRequest(toLatLng((GeoPoint)data.get("pickup")),toLatLng((GeoPoint)data.get("dropoff")),
+                                queue,(long)data.get("delay"),(String)data.get("task"),(double)data.get("pay")));
+                    }
+                } else {
+                    Log.w("asdf", "Error getting documents.", task.getException());
+                }
+                Log.d("asdf", "onComplete: "+quests.size());
+            }
+        });
+    }
+
+    public LatLng toLatLng(GeoPoint geo){
+        return new LatLng(geo.getLatitude(),geo.getLongitude());
+    }
+
     @SuppressWarnings("StatementWithEmptyBody")
     @Override
     public boolean onNavigationItemSelected(MenuItem item) {
         // Handle navigation view item clicks here.
         int id = item.getItemId();
 
-        if (id == R.id.nav_camera) {
-            // Handle the camera action
-        } else if (id == R.id.nav_gallery) {
+        if (id == R.id.ear_deliverer){
 
-        } else if (id == R.id.nav_slideshow) {
+        } else if(id == R.id.eye_user){
 
-        } else if (id == R.id.nav_manage) {
+        } else if(id == R.id.pay){
 
-        } else if (id == R.id.nav_share) {
-
-        } else if (id == R.id.nav_send) {
+        } else if(id == R.id.settings){
 
         }
 
@@ -195,13 +232,17 @@ public class MainActivity extends AppCompatActivity
             return;
         }
         mMap.setMyLocationEnabled(true);
-        mMap.addMarker(new MarkerOptions().position(coors[0]).title("Destination 1"));
-        mMap.addMarker(new MarkerOptions().position(coors[1]).title("Destination 2"));
-        mMap.addMarker(new MarkerOptions().position(coors[2]).title("Destination 2"));
+//        mMap.addMarker(new MarkerOptions().position(coors[0]).title("Destination 1"));
+//        mMap.addMarker(new MarkerOptions().position(coors[1]).title("Destination 2"));
+//        mMap.addMarker(new MarkerOptions().position(coors[2]).title("Destination 2"));
 
         mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
             @Override
             public void onPolylineClick(Polyline polyline) {
+                for(PickupRequest r: quests)
+                    if(r.equals(polyline)){
+                        Toast.makeText(MainActivity.this, r.getTask(), Toast.LENGTH_SHORT).show();
+                    }
 
             }
         });
@@ -212,16 +253,18 @@ public class MainActivity extends AppCompatActivity
                 //
                 @Override
                 public void onMyLocationChange(Location arg0) {
-                    double rad = radiusCircle.getRadius();
-                    double lat=radiusCircle.getCenter().latitude-rad,lng=radiusCircle.getCenter().longitude-rad;
-                    mMap.setLatLngBoundsForCameraTarget(new LatLngBounds());
+
+
                     mMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(arg0.getLatitude(), arg0.getLongitude())));
                     if (radiusCircle != null) {
                         radiusCircle.setCenter(new LatLng(arg0.getLatitude(), arg0.getLongitude()));
                         radiusCircle.setRadius(range);
+//                        double rad = radiusCircle.getRadius();
+//                        double lat=radiusCircle.getCenter().latitude-rad,lng=radiusCircle.getCenter().longitude-rad;
+//                        mMap.setLatLngBoundsForCameraTarget(new LatLngBounds(new LatLng(lat,lng),new LatLng(lat+2*rad,lng+2*rad)));
                     }
                     else
-                        radiusCircle = mMap.addCircle(new CircleOptions().center(new LatLng(arg0.getLatitude(), arg0.getLongitude())).radius(range).visible(true).strokeColor(0x4fc4f733));
+                        radiusCircle = mMap.addCircle(new CircleOptions().center(new LatLng(arg0.getLatitude(), arg0.getLongitude())).radius(range).visible(true).strokeColor(Color.BLUE));
 
                     inRange(arg0.getLatitude(), arg0.getLongitude());
                 }
@@ -235,7 +278,7 @@ public class MainActivity extends AppCompatActivity
         if(mMap!=null){
             for(Polyline line:onMap)
                 inputs.remove(line);
-
+            Log.d("asdf", "addRequests: "+inputs.size());
             for(PickupRequest r: inputs) {
                 r.makePolyLine(mMap,onMap);
             }
@@ -244,7 +287,7 @@ public class MainActivity extends AppCompatActivity
 
     public void inRange(double lat, double lng){
         String url=DISTANCE_URL+lat+","+lng+"&destinations=";
-        for(PickupRequest r:destinations)
+        for(PickupRequest r: quests)
             url+=r.getLatLng()+"|";
         url.substring(0,url.length()-1);
         url+="&mode=walking&units=imperial"+API;
@@ -255,9 +298,9 @@ public class MainActivity extends AppCompatActivity
                         try {
                             JSONArray values = new JSONObject(response).getJSONArray("rows").getJSONObject(0).getJSONArray("elements");
                             List<PickupRequest> inRange = new ArrayList<>();
-                            for(int i=0;i<destinations.size();i++)
+                            for(int i=0;i<quests.size();i++)
                                 if(values.getJSONObject(i).getJSONObject("distance").optInt("value",-1)<=range) {
-                                    inRange.add(destinations.get(i));
+                                    inRange.add(quests.get(i));
                                 }
                             addRequests(inRange);
                         } catch (JSONException e) {
