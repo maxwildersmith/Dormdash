@@ -1,7 +1,9 @@
 package com.example.drago.dormdash;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -56,8 +58,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, OnMapReadyCallback {
@@ -72,6 +76,7 @@ public class MainActivity extends AppCompatActivity
     private RequestQueue queue;
     private Circle radiusCircle;
     private MapView mapview;
+    private Polyline mission=null;
     private double range = 300;
     private LatLng[] coors = {new LatLng(34.042317, -118.255994),new LatLng(34.041906, -118.252327), new LatLng(34.041666, -118.258459)};
     private SharedPreferences preferences;
@@ -114,7 +119,6 @@ public class MainActivity extends AppCompatActivity
         quests.add(new PickupRequest(coors[0],coors[2],queue,"Pick up a sandwich for me",2.5));
 //        destinations.add(new PickupRequest(coors[1],coors[0],queue));
 
-        pullQuests();
     }
 
     @Override
@@ -149,8 +153,8 @@ public class MainActivity extends AppCompatActivity
             settingsDialog.setContentView(layout);
             final TextView seekText = (TextView)layout.findViewById(R.id.seektext);
             SeekBar seek = (SeekBar)layout.findViewById(R.id.seekBar);
-            seek.setProgress((int)(range*32.8084));
-            seek.setMax(150000);
+
+            seek.setMax(15000);
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -170,13 +174,14 @@ public class MainActivity extends AppCompatActivity
             });
             settingsDialog.create();
             settingsDialog.show();
+            seek.setProgress((int)(range*32.8084));
             return true;
         }
 
         return super.onOptionsItemSelected(item);
     }
 
-    public void pullQuests(){
+    public void pullQuests(double lat,double lng){
         db.collection("quests")
                 .get()
                 .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
@@ -185,8 +190,11 @@ public class MainActivity extends AppCompatActivity
                 if (task.isSuccessful()) {
                     for (QueryDocumentSnapshot document : task.getResult()) {
                         Map<String,Object> data = document.getData();
-                        quests.add(new PickupRequest(toLatLng((GeoPoint)data.get("pickup")),toLatLng((GeoPoint)data.get("dropoff")),
-                                queue,(long)data.get("delay"),(String)data.get("task"),(double)data.get("pay")));
+                        PickupRequest request = new PickupRequest(toLatLng((GeoPoint)data.get("pickup")),toLatLng((GeoPoint)data.get("dropoff")),
+                                queue,(long)data.get("delay"),(String)data.get("task"),(double)data.get("pay"));
+                        if(!quests.contains(request))
+                            quests.add(request);
+                        Log.d("asdf", "onComplete:                                                       "+(long)data.get("delay"));
                     }
                 } else {
                     Log.w("asdf", "Error getting documents.", task.getException());
@@ -194,6 +202,7 @@ public class MainActivity extends AppCompatActivity
                 Log.d("asdf", "onComplete: "+quests.size());
             }
         });
+        inRange(lat,lng);
     }
 
     public LatLng toLatLng(GeoPoint geo){
@@ -238,10 +247,26 @@ public class MainActivity extends AppCompatActivity
 
         mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
             @Override
-            public void onPolylineClick(Polyline polyline) {
+            public void onPolylineClick(final Polyline polyline) {
                 for(PickupRequest r: quests)
                     if(r.equals(polyline)){
-                        Toast.makeText(MainActivity.this, r.getTask(), Toast.LENGTH_SHORT).show();
+                        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        builder.setTitle("Accept Quest?");
+                        builder.setPositiveButton("Accept", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                mission=polyline;
+                            }
+                        });
+                        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.dismiss();
+                            }
+                        });
+                        long millisago = Calendar.getInstance().getTimeInMillis()-r.getSendTime();
+                        builder.setMessage(r.getTask()+"\n+$"+r.getPay()+"              "+TimeUnit.MILLISECONDS.toMinutes(millisago)+":"+(TimeUnit.MILLISECONDS.toSeconds(millisago)%60)+" ago");
+                        builder.create().show();
                     }
 
             }
@@ -265,8 +290,7 @@ public class MainActivity extends AppCompatActivity
                     }
                     else
                         radiusCircle = mMap.addCircle(new CircleOptions().center(new LatLng(arg0.getLatitude(), arg0.getLongitude())).radius(range).visible(true).strokeColor(Color.BLUE));
-
-                    inRange(arg0.getLatitude(), arg0.getLongitude());
+                    pullQuests(arg0.getLatitude(), arg0.getLongitude());
                 }
             });
 
@@ -276,8 +300,8 @@ public class MainActivity extends AppCompatActivity
     public void addRequests(List<PickupRequest> inputs){
         Log.d("asdf", "addRequests: "+inputs.size());
         if(mMap!=null){
-            for(Polyline line:onMap)
-                inputs.remove(line);
+            for(Polyline p:onMap)
+                p.remove();
             Log.d("asdf", "addRequests: "+inputs.size());
             for(PickupRequest r: inputs) {
                 r.makePolyLine(mMap,onMap);

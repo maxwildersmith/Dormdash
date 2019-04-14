@@ -25,6 +25,7 @@ import org.json.JSONObject;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class PickupRequest {
     private LatLng pickup, dropoff;
@@ -41,6 +42,7 @@ public class PickupRequest {
     public PickupRequest(LatLng pickup, LatLng dropoff, RequestQueue queue, long requestTime, String task, double pay){
         this.task=task;
         this.pay=pay;
+        this.sendTime=requestTime;
         sendTime = Calendar.getInstance().getTimeInMillis();
         this.pickup=pickup;
         this.dropoff=dropoff;
@@ -85,9 +87,14 @@ public class PickupRequest {
     }
 
     public void makePolyLine(GoogleMap map, List<Polyline> onMap){
-        onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(getDelay()/60000<=1? Color.CYAN:getDelay()/6000<=5?Color.MAGENTA:Color.RED).endCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_money))).startCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_mail)))));
+        long delaymin = TimeUnit.MILLISECONDS.toMinutes(Calendar.getInstance().getTimeInMillis()-sendTime);
+        onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(delaymin <=1? Color.CYAN:delaymin<=5?Color.MAGENTA:Color.RED).endCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_money),10)).startCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_mail),10))));
 //        onMap.get(0).setStartCap(new Cap);
 
+    }
+
+    public double getPay(){
+        return pay;
     }
 
     public String getTask(){
