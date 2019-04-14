@@ -68,6 +68,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, OnMapReadyCallback {
@@ -203,6 +204,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     public void pullQuests(double lat,double lng){
+
         db.collection("quests")
                 .get()
                 .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
@@ -213,9 +215,8 @@ public class MainActivity extends AppCompatActivity
                                 Map<String,Object> data = document.getData();
                                 PickupRequest request = new PickupRequest(toLatLng((GeoPoint)data.get("pickup")),toLatLng((GeoPoint)data.get("dropoff")),
                                         queue,(long)data.get("delay"),(String)data.get("task"),(double)data.get("pay"));
-                                if(!quests.contains(request))
-                                    quests.add(request);
-                                Log.d("asdf", "onComplete:                                                       "+(long)data.get("delay"));
+                                Log.d("asdf", "onComplete: "+quests.size()+"         "+onMap.size());
+                                quests.add(request);
                             }
                         } else {
                             Log.w("asdf", "Error getting documents.", task.getException());
@@ -265,16 +266,16 @@ public class MainActivity extends AppCompatActivity
         mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
             @Override
             public void onPolylineClick(final Polyline polyline) {
-                for(PickupRequest r: quests)
-                    if(r.equals(polyline)){
+                for (PickupRequest r : quests) {
+                    if (r.equals(polyline)) {
                         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
                         builder.setTitle("Accept Quest?");
                         builder.setPositiveButton("Accept", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                for(PickupRequest r:quests)
-                                    if(r.equals(polyline)){
-                                        mission=r;
+                                for (PickupRequest r : quests)
+                                    if (r.equals(polyline)) {
+                                        mission = r;
                                         return;
                                     }
                             }
@@ -285,11 +286,13 @@ public class MainActivity extends AppCompatActivity
                                 dialog.dismiss();
                             }
                         });
-                        long millisago = Calendar.getInstance().getTimeInMillis()-r.getSendTime();
-                        builder.setMessage(r.getTask()+"\n+$"+r.getPay()+"              "+TimeUnit.MILLISECONDS.toMinutes(millisago)+":"+(TimeUnit.MILLISECONDS.toSeconds(millisago)%60)+" ago");
+                        long millisago = Calendar.getInstance().getTimeInMillis() - r.getSendTime();
+                        builder.setMessage(r.getTask() + "\n+$" + r.getPay() + "              " + TimeUnit.MILLISECONDS.toMinutes(millisago) + ":" + (TimeUnit.MILLISECONDS.toSeconds(millisago) % 60) + " ago");
                         builder.create().show();
+                        break;
                     }
 
+                }
             }
         });
         if (mMap != null) {
@@ -339,9 +342,7 @@ public class MainActivity extends AppCompatActivity
                                                     data.put("pickup", new GeoPoint(newQuestLoc[0].getPosition().latitude,newQuestLoc[0].getPosition().longitude));
                                                     try {
                                                         data.put("pay", Float.parseFloat(price.getText().toString()));
-                                                    }catch(NumberFormatException e){
-                                                        Toast.makeText(MainActivity.this, "Numbers only for price!", Toast.LENGTH_SHORT).show();
-                                                    }
+
                                                     data.put("task",description.getText().toString());
                                                     db.collection("quests").add(data).addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
                                                         @Override
@@ -361,6 +362,9 @@ public class MainActivity extends AppCompatActivity
                                                                     Log.w("asdf", "Error adding document", e);
                                                                 }
                                                             });
+                                                    }catch(NumberFormatException e){
+                                                        Toast.makeText(MainActivity.this, "Numbers only for price!", Toast.LENGTH_SHORT).show();
+                                                    }
                                                 }
                                             })
                                     .setNegativeButton("Cancel",

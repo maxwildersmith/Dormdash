@@ -91,6 +91,7 @@ public class PickupRequest {
     }
 
     public void makePolyLine(GoogleMap map, List<Polyline> onMap, boolean mission){
+
         long delaymin = TimeUnit.MILLISECONDS.toMinutes(Calendar.getInstance().getTimeInMillis()-sendTime);
         onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(mission?Color.YELLOW:delaymin <=1? Color.CYAN:delaymin<=5?Color.MAGENTA:Color.RED).endCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_money),10)).startCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_mail),10))));
 //        onMap.get(0).setStartCap(new Cap);
@@ -104,8 +105,10 @@ public class PickupRequest {
     public String getTask(){
         return task;
     }
+
+
     public boolean equals(PickupRequest obj) {
-        return obj==null?null:obj.getLatLng().equals(getLatLng());
+        return obj.getLatLng().equals(getLatLng());
     }
 
     public boolean equals(Polyline obj){
