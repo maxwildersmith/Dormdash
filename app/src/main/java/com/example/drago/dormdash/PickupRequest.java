@@ -30,13 +30,17 @@ import java.util.concurrent.TimeUnit;
 public class PickupRequest {
     private LatLng pickup, dropoff;
     private long sendTime;
-    private static int id=0;
+    private int id=0;
     private LatLng[] polyLine;
     private double pay;
     private String task;
 
     public PickupRequest(LatLng pickup, LatLng dropoff, RequestQueue queue, String task, double pay){
         this(pickup,dropoff,queue,Calendar.getInstance().getTimeInMillis(),task, pay);
+    }
+
+    private String getID(){
+        return sendTime+task;
     }
 
     public PickupRequest(LatLng pickup, LatLng dropoff, RequestQueue queue, long requestTime, String task, double pay){
@@ -86,9 +90,9 @@ public class PickupRequest {
         return polyLine;
     }
 
-    public void makePolyLine(GoogleMap map, List<Polyline> onMap){
+    public void makePolyLine(GoogleMap map, List<Polyline> onMap, boolean mission){
         long delaymin = TimeUnit.MILLISECONDS.toMinutes(Calendar.getInstance().getTimeInMillis()-sendTime);
-        onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(delaymin <=1? Color.CYAN:delaymin<=5?Color.MAGENTA:Color.RED).endCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_money),10)).startCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_mail),10))));
+        onMap.add(0,map.addPolyline(new PolylineOptions().add(getPolyLine()).clickable(true).color(mission?Color.YELLOW:delaymin <=1? Color.CYAN:delaymin<=5?Color.MAGENTA:Color.RED).endCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_money),10)).startCap(new CustomCap(BitmapDescriptorFactory.fromResource(R.drawable.ic_mail),10))));
 //        onMap.get(0).setStartCap(new Cap);
 
     }
@@ -101,7 +105,7 @@ public class PickupRequest {
         return task;
     }
     public boolean equals(PickupRequest obj) {
-        return obj.getLatLng().equals(getLatLng());
+        return obj==null?null:obj.getLatLng().equals(getLatLng());
     }
 
     public boolean equals(Polyline obj){

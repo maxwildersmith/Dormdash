@@ -25,6 +25,7 @@ import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -44,10 +45,14 @@ import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
@@ -59,6 +64,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -76,11 +82,13 @@ public class MainActivity extends AppCompatActivity
     private RequestQueue queue;
     private Circle radiusCircle;
     private MapView mapview;
-    private Polyline mission=null;
-    private double range = 300;
-    private LatLng[] coors = {new LatLng(34.042317, -118.255994),new LatLng(34.041906, -118.252327), new LatLng(34.041666, -118.258459)};
+    private PickupRequest mission=null;
+    private float range;
+    private Marker[] newQuestLoc;// = {new LatLng(34.042317, -118.255994),new LatLng(34.041906, -118.252327), new LatLng(34.041666, -118.258459)};
     private SharedPreferences preferences;
     private FirebaseFirestore db;
+
+    private boolean makingQuest=false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,13 +97,25 @@ public class MainActivity extends AppCompatActivity
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        preferences = getSharedPreferences("savedata", 0);
+        range = preferences.getFloat("range", 300);
+
         db = FirebaseFirestore.getInstance();
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Toast.makeText(MainActivity.this, "Add stuff here", Toast.LENGTH_SHORT).show();
+                if(makingQuest){
+                    makingQuest=false;
+                    if(newQuestLoc[0]!=null)
+                        newQuestLoc[0].remove();
+                    if(newQuestLoc[1]!=null)
+                        newQuestLoc[1].remove();
+                    newQuestLoc=new Marker[2];
+                } else {
+                    makingQuest=true;
+                }
             }
         });
 
@@ -111,15 +131,16 @@ public class MainActivity extends AppCompatActivity
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-
         queue = Volley.newRequestQueue(this);
 
+        newQuestLoc = new Marker[2];
         onMap = new ArrayList<>();
         quests = new ArrayList<>();
-        quests.add(new PickupRequest(coors[0],coors[2],queue,"Pick up a sandwich for me",2.5));
+//        quests.add(new PickupRequest(coors[0],coors[2],queue,"Pick up a sandwich for me",2.5));
 //        destinations.add(new PickupRequest(coors[1],coors[0],queue));
 
     }
+
 
     @Override
     public void onBackPressed() {
@@ -158,7 +179,7 @@ public class MainActivity extends AppCompatActivity
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    range=progress/32.8084;
+                    range=progress/32.8084f;
                     seekText.setText("Scanning Radius (ft): "+(progress/10));
                 }
 
@@ -169,7 +190,7 @@ public class MainActivity extends AppCompatActivity
 
                 @Override
                 public void onStopTrackingTouch(SeekBar seekBar) {
-
+                    preferences.edit().putFloat("range",range).commit();
                 }
             });
             settingsDialog.create();
@@ -185,23 +206,23 @@ public class MainActivity extends AppCompatActivity
         db.collection("quests")
                 .get()
                 .addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
-            @Override
-            public void onComplete(@NonNull Task<QuerySnapshot> task) {
-                if (task.isSuccessful()) {
-                    for (QueryDocumentSnapshot document : task.getResult()) {
-                        Map<String,Object> data = document.getData();
-                        PickupRequest request = new PickupRequest(toLatLng((GeoPoint)data.get("pickup")),toLatLng((GeoPoint)data.get("dropoff")),
-                                queue,(long)data.get("delay"),(String)data.get("task"),(double)data.get("pay"));
-                        if(!quests.contains(request))
-                            quests.add(request);
-                        Log.d("asdf", "onComplete:                                                       "+(long)data.get("delay"));
+                    @Override
+                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                        if (task.isSuccessful()) {
+                            for (QueryDocumentSnapshot document : task.getResult()) {
+                                Map<String,Object> data = document.getData();
+                                PickupRequest request = new PickupRequest(toLatLng((GeoPoint)data.get("pickup")),toLatLng((GeoPoint)data.get("dropoff")),
+                                        queue,(long)data.get("delay"),(String)data.get("task"),(double)data.get("pay"));
+                                if(!quests.contains(request))
+                                    quests.add(request);
+                                Log.d("asdf", "onComplete:                                                       "+(long)data.get("delay"));
+                            }
+                        } else {
+                            Log.w("asdf", "Error getting documents.", task.getException());
+                        }
+                        Log.d("asdf", "onComplete: "+quests.size());
                     }
-                } else {
-                    Log.w("asdf", "Error getting documents.", task.getException());
-                }
-                Log.d("asdf", "onComplete: "+quests.size());
-            }
-        });
+                });
         inRange(lat,lng);
     }
 
@@ -215,13 +236,7 @@ public class MainActivity extends AppCompatActivity
         // Handle navigation view item clicks here.
         int id = item.getItemId();
 
-        if (id == R.id.ear_deliverer){
-
-        } else if(id == R.id.eye_user){
-
-        } else if(id == R.id.pay){
-
-        } else if(id == R.id.settings){
+        if(id == R.id.eye_user){
 
         }
 
@@ -245,6 +260,8 @@ public class MainActivity extends AppCompatActivity
 //        mMap.addMarker(new MarkerOptions().position(coors[1]).title("Destination 2"));
 //        mMap.addMarker(new MarkerOptions().position(coors[2]).title("Destination 2"));
 
+
+
         mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
             @Override
             public void onPolylineClick(final Polyline polyline) {
@@ -255,7 +272,11 @@ public class MainActivity extends AppCompatActivity
                         builder.setPositiveButton("Accept", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                mission=polyline;
+                                for(PickupRequest r:quests)
+                                    if(r.equals(polyline)){
+                                        mission=r;
+                                        return;
+                                    }
                             }
                         });
                         builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
@@ -271,26 +292,91 @@ public class MainActivity extends AppCompatActivity
 
             }
         });
-        // Check if we were successful in obtaining the map.
         if (mMap != null) {
-
             mMap.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
-                //
                 @Override
                 public void onMyLocationChange(Location arg0) {
-
-
                     mMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(arg0.getLatitude(), arg0.getLongitude())));
                     if (radiusCircle != null) {
                         radiusCircle.setCenter(new LatLng(arg0.getLatitude(), arg0.getLongitude()));
                         radiusCircle.setRadius(range);
-//                        double rad = radiusCircle.getRadius();
-//                        double lat=radiusCircle.getCenter().latitude-rad,lng=radiusCircle.getCenter().longitude-rad;
-//                        mMap.setLatLngBoundsForCameraTarget(new LatLngBounds(new LatLng(lat,lng),new LatLng(lat+2*rad,lng+2*rad)));
                     }
                     else
                         radiusCircle = mMap.addCircle(new CircleOptions().center(new LatLng(arg0.getLatitude(), arg0.getLongitude())).radius(range).visible(true).strokeColor(Color.BLUE));
                     pullQuests(arg0.getLatitude(), arg0.getLongitude());
+                }
+            });
+            mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+                @Override
+                public void onMapClick(LatLng latLng) {
+                    if(makingQuest){
+                        if(newQuestLoc[0]==null)
+                            newQuestLoc[0]=mMap.addMarker(new MarkerOptions().title("Pick up point").position(latLng));
+                        else if(newQuestLoc[1]==null){
+                            newQuestLoc[1]=mMap.addMarker(new MarkerOptions().title("Drop off point").position(latLng));
+                            LayoutInflater li = LayoutInflater.from(MainActivity.this);
+                            View promptsView = li.inflate(R.layout.add_dialog, null);
+
+                            AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(
+                                    MainActivity.this);
+                            alertDialogBuilder.setTitle("Create quest");
+
+                            // set prompts.xml to alertdialog builder
+                            alertDialogBuilder.setView(promptsView);
+
+                            final EditText description = (EditText) promptsView.findViewById(R.id.add_desc);
+                            final EditText price = (EditText) promptsView.findViewById(R.id.add_price);
+
+                            // set dialog message
+                            alertDialogBuilder
+                                    .setCancelable(false)
+                                    .setPositiveButton("Confirm",
+                                            new DialogInterface.OnClickListener() {
+                                                public void onClick(DialogInterface dialog,int id) {
+                                                    HashMap<String,Object> data = new HashMap<>();
+                                                    data.put("delay",Calendar.getInstance().getTimeInMillis());
+                                                    data.put("dropoff",new GeoPoint(newQuestLoc[1].getPosition().latitude,newQuestLoc[1].getPosition().longitude));
+                                                    data.put("pickup", new GeoPoint(newQuestLoc[0].getPosition().latitude,newQuestLoc[0].getPosition().longitude));
+                                                    try {
+                                                        data.put("pay", Float.parseFloat(price.getText().toString()));
+                                                    }catch(NumberFormatException e){
+                                                        Toast.makeText(MainActivity.this, "Numbers only for price!", Toast.LENGTH_SHORT).show();
+                                                    }
+                                                    data.put("task",description.getText().toString());
+                                                    db.collection("quests").add(data).addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
+                                                        @Override
+                                                        public void onSuccess(DocumentReference documentReference) {
+                                                            Toast.makeText(MainActivity.this, "Added!", Toast.LENGTH_SHORT).show();
+                                                            makingQuest=false;
+                                                            if(newQuestLoc[0]!=null)
+                                                                newQuestLoc[0].remove();
+                                                            if(newQuestLoc[1]!=null)
+                                                                newQuestLoc[1].remove();
+                                                            newQuestLoc=new Marker[2];
+                                                        }
+                                                    })
+                                                            .addOnFailureListener(new OnFailureListener() {
+                                                                @Override
+                                                                public void onFailure(@NonNull Exception e) {
+                                                                    Log.w("asdf", "Error adding document", e);
+                                                                }
+                                                            });
+                                                }
+                                            })
+                                    .setNegativeButton("Cancel",
+                                            new DialogInterface.OnClickListener() {
+                                                public void onClick(DialogInterface dialog,int id) {
+                                                    dialog.cancel();
+                                                }
+                                            });
+
+                            // create alert dialog
+                            AlertDialog alertDialog = alertDialogBuilder.create();
+
+                            // show it
+                            alertDialog.show();
+                        }
+                    }
                 }
             });
 
@@ -304,7 +390,7 @@ public class MainActivity extends AppCompatActivity
                 p.remove();
             Log.d("asdf", "addRequests: "+inputs.size());
             for(PickupRequest r: inputs) {
-                r.makePolyLine(mMap,onMap);
+                r.makePolyLine(mMap,onMap,mission==null?false:r.equals(mission));
             }
         }
     }
@@ -334,7 +420,7 @@ public class MainActivity extends AppCompatActivity
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Log.d("asdf", "onErrorResponse: mlem mlem mlem mlem mlem mlem mlem");
+                Toast.makeText(MainActivity.this, error.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
 

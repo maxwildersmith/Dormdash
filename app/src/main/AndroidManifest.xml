@@ -3,6 +3,7 @@
     package="com.example.drago.dormdash">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -21,7 +22,10 @@
             </intent-filter>
         </activity>
 
-        <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyDQ3MYRpEFdHYU84eRGt8g6Q4eFYmz88T4"/>
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyDQ3MYRpEFdHYU84eRGt8g6Q4eFYmz88T4" />
+
     </application>
 
 </manifest>
